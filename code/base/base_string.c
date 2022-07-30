@@ -1,5 +1,3 @@
-#define STB_SPRINTF_IMPLEMENTATION
-#include "third_party/stb_sprintf.h"
 
 ////////////////////////////////
 //~ NOTE(fakhri): Char Functions
@@ -196,7 +194,7 @@ internal u64
 FindSubstr8(string8 haystack, string8 needle, u64 start_pos, match_flags flags)
 {
     u64 found_idx = haystack.size;
-    b32 is_fist = true;
+    b32 is_first = true;
     for(u64 i = start_pos; i < haystack.size; i += 1)
     {
         if(i + needle.size <= haystack.size)
@@ -205,9 +203,9 @@ FindSubstr8(string8 haystack, string8 needle, u64 start_pos, match_flags flags)
             if(Str8Match(substr, needle, flags))
             {
                 found_idx = i;
-                if ((flags & MatchFlag_SkipFirst) && is_fist)
+                if ((flags & MatchFlag_SkipFirst) && is_first)
                 {
-                    is_fist = false;
+                    is_first = false;
                     continue;
                 }
                 if(!(flags & MatchFlag_FindLast))
@@ -221,7 +219,7 @@ FindSubstr8(string8 haystack, string8 needle, u64 start_pos, match_flags flags)
 }
 
 internal b32
-Str8EndsWith(string8 A, string8 B, match_flags Flags = 0)
+Str8EndsWith(string8 A, string8 B, match_flags Flags)
 {
     b32 Result = 0;
     if (A.size >= B.size)
@@ -721,7 +719,7 @@ Utf16FromCodepoint(u16 *out, u32 codepoint)
     else
     {
         u64 v = codepoint - 0x10000;
-        out[0] = (u16)(0xD800 + (v >> 10));
+        out[0] = 0xD800 + (v >> 10);
         out[1] = 0xDC00 + (v & bitmask10);
         advance = 2;
     }
@@ -893,6 +891,18 @@ Str8ChopLeadingSpaces(string8 String)
     return String;
 }
 
+internal string8
+Str8SkipToNextLine(string8 String)
+{
+    u64 NewLinePos = FindSubstr8(String, Str8Lit("\n"), 0, 0);
+    if(NewLinePos < String.size)
+    {
+        String.str += NewLinePos+1;
+        String.size -= NewLinePos+1;
+    }
+    return String;
+}
+
 ////////////////////////////////
 //~ NOTE(fakhri): Numeric Conversions
 
@@ -957,7 +967,7 @@ CStyleIntFromStr8(string8 string)
     
     // consume integer "digits"
     string8 digits_substr = Str8SkipFirst(string, p);
-    u64 n = u64FromStr8(digits_substr, (u32)radix);
+    u64 n = u64FromStr8(digits_substr, radix);
     
     // combine result
     i64 result = sign*n;
@@ -982,8 +992,8 @@ internal string8
 CStyleHexStringFromu64(m_arena *arena, u64 x, b32 caps)
 {
     local_persist char int_value_to_char[] = "0123456789abcdef";
-    u8 buffer[10];
-    u8 *opl = buffer + 10;
+    u8 Buffer[10];
+    u8 *opl = Buffer + 10;
     u8 *ptr = opl;
     if (x == 0){
         ptr -= 1;
@@ -1014,9 +1024,9 @@ CStyleHexStringFromu64(m_arena *arena, u64 x, b32 caps)
     *ptr = '0';
     
     string8 result = {0};
-    result.size = (u64)(ptr - buffer);
+    result.size = (u64)(ptr - Buffer);
     result.str = PushArray(arena, u8, result.size);
-    MemoryCopy(result.str, buffer, result.size);
+    MemoryCopy(result.str, Buffer, result.size);
     
     return result;
 }

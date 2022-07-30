@@ -5,11 +5,10 @@
 
 #include "os_files.h"
 #include "os_network.h"
+#include "os_time.h"
 
 #if OS_LINUX
 #include "linux/linux_inc.h"
-#elif OS_WINDOWS
-#include "win32/win32_inc.h"
 #else
 # error Provide Platform Implementations
 #endif

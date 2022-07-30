@@ -49,7 +49,7 @@ NextRandomNumberNF(random_generator *RandomGenerator)
 }
 
 internal string8
-CreateBase64StringNotInSet(m_arena *Arena, random_generator *RandomGenerator, string_hashset *Blacklist, u32 StringLength)
+CreateBase64StringNotInSet(m_arena *Arena, random_generator *RandomGenerator, hashtable *Blacklist, u32 StringLength)
 {
     string8 Result;
     Result.size = StringLength;
@@ -68,8 +68,8 @@ CreateBase64StringNotInSet(m_arena *Arena, random_generator *RandomGenerator, st
             Result.str[Index] = Base64Encoding[RandomNumber];
         }
         // NOTE(fakhri): see if it already exist in the blacklist
-        u32 FindIndex = StringHashset_FindKey(Blacklist, Result);
-        if (FindIndex == HashTableSize)
+        hashtable_key Key = MakeHashtableKey(Result);
+        if (!Hashtable_Find(Blacklist, Key))
         {
             // NOTE(fakhri): string is not in balcklist
             break;

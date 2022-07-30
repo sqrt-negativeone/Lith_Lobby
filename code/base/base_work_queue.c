@@ -3,6 +3,7 @@ internal void
 WorkQueue_SetupQueue(work_queue *WorkQueue, u32 WorkersCount)
 {
     OS_CreateSemaphore(&WorkQueue->WaitingThreadsSemaphore, 0, WorkersCount);
+    OS_CreateSemaphore(&WorkQueue->ProducersMutex, 1, 1);
 }
 
 internal next_work
@@ -67,10 +68,9 @@ internal b32
 WorkQueue_PushEntry(work_queue *WorkQueue, worker_work *Work, void *Data)
 {
     b32 Result = false;
-    UnusedVariable(Data);
-    UnusedVariable(Work);
-    UnusedVariable(WorkQueue);
-    NotImplemented;
+    OS_AcquireSemaphore(&WorkQueue->ProducersMutex);
+    Result = WorkQueue_PushEntrySP(WorkQueue, Work, Data);
+    OS_ReleaseSemaphore(&WorkQueue->ProducersMutex);
     return Result;
 }
 
@@ -87,4 +87,3 @@ WorkQueue_IsFull(work_queue *WorkQueue)
     b32 Result = (WorkQueue->Tail - WorkQueue->Head) == ArrayCount(WorkQueue->Entries);
     return Result;
 }
-

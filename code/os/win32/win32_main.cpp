@@ -17,7 +17,6 @@ global string8 W32_InitalPath = {0};
 global work_queue W32_WorkQueue;
 global thread_ctx W32ThreadContext;
 
-
 // NOTE(fakhri): implementations
 #include "base/base_inc.cpp"
 #include "os/os_inc.cpp"
@@ -37,8 +36,8 @@ struct host_storage
 #define Hosts_GetValue(Hosts, GameID, Host) \
 Hashtable_GetValue(Hosts, GameID, host, Host, ZERO_STRUCT)
 
-#define Hosts_Insert(Arena, Hosts, GameID, Host) \
-Hashtable_InsertF(Arena, Hosts, GameID, Host, Hashtable_DefaultInsertFunction)
+#define Hosts_Insert(Hosts, GameIDNode, Host) \
+Hashtable_InsertNode(Hosts, GameIDNode, Host)
 
 struct app_context
 {
@@ -46,7 +45,10 @@ struct app_context
     m_arena *Arena;
     string_hashset *ExistingGameIDs;
     random_generator GameIDsEntroy;
+    random_generator GeneralEntropy;
     host_storage Hosts;
+    
+    string8_node *FreeNodes;
 };
 
 #define HOST_PORT   "1234"
@@ -110,20 +112,42 @@ ProcessHostRequest(void *Input)
     app_context *App = HostInput->App;
     
     Begin_SyncSection_Write(&App->Sync);
-    string8 GameID = CreateBase64StringNotInSet(App->Arena, &App->GameIDsEntroy, App->ExistingGameIDs, GameIDLength);
-    Log("generated game id: %.*s", Str8Expand(GameID));
+    string8_node *GameIDNode = 0;
+    if (App->FreeNodes)
+    {
+        GameIDNode = App->FreeNodes;
+        App->FreeNodes = GameIDNode->Next;
+    }
+    
+    if (!GameIDNode)
+    {
+        GameIDNode = PushArrayZero(App->Arena, string8_node, 1);
+        GameIDNode->String.str = PushArray(App->Arena, u8, GameIDLength);
+        GameIDNode->String.size = GameIDLength;
+    }
+    
+    {
+        string8 TempGameID = CreateBase64StringNotInSet(HostInput->Arena, &App->GameIDsEntroy, App->ExistingGameIDs, GameIDLength);
+        MemoryCopy(GameIDNode->String.str, TempGameID.str, GameIDLength);
+    }
+    
+    string8 GameID = GameIDNode->String;
+    Log("generated game id: %.*s", Str8Expand(GameIDNode->String));
     host Host;
     Host.Socket = HostInput->Socket;
     Host.Address = HostInput->Address;
-    Hosts_Insert(App->Arena, &App->Hosts, GameID, Host);
+    Hosts_Insert(&App->Hosts, GameIDNode, Host);
     End_SyncSection_Write(&App->Sync);
+    
     // NOTE(fakhri): let the host know what is his game id
     OS_NetworkSendBuffer(HostInput->Socket, &GameID.size, sizeof(GameID.size));
     OS_NetworkSendBuffer(HostInput->Socket, GameID.str, (u32)GameID.size);
     
+    // TODO(fakhri): register the host socket in the completion port to know when the host 
+    // is no longer active
+    
     M_ArenaRelease(HostInput->Arena);
 }
-
 
 internal DWORD WINAPI 
 W32_WorkerThreadMain(void *Input)
@@ -171,10 +195,8 @@ int main()
     Sync_MakeSynchronizationObject(&App->Sync);
     App->ExistingGameIDs = &App->Hosts.HashtableKeys;
     App->GameIDsEntroy = MakeLinearRandomGenerator(1234);
+    App->GeneralEntropy = MakeLinearRandomGenerator(5678);
     App->Arena = M_ArenaAlloc(Megabytes(100));
-    
-    // TODO(fakhri): manage the hosts, ie try to delete the hosts that
-    // are no longer alive
     
 #define WorkersCount 8
     WorkQueue_SetupQueue(&W32_WorkQueue, WorkersCount);
@@ -199,6 +221,7 @@ int main()
     
     FD_SET(PlayerListenSocket, &AllFDs);
     FD_SET(HostListenSocket, &AllFDs);
+    
     
     for(;;)
     {
@@ -233,7 +256,6 @@ int main()
                     Input->Socket = HostSocket;
                     Input->Arena = Arena;
                     Input->App = App;
-                    // TODO(fakhri): get the host address
                     Input->Address = Addr.sin_addr.S_un.S_addr;
                     WorkQueue_PushEntrySP(&W32_WorkQueue, ProcessHostRequest, Input);
                 }
@@ -245,4 +267,5 @@ int main()
             break;
         }
     }
+    
 }

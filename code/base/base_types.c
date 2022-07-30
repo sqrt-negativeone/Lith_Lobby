@@ -31,14 +31,18 @@ _DebugLog(i32 flags, char *file, int line, char *format, ...)
         {
             name = "Warning";
         }
-        fprintf(stdout, "%s (%s:%i) ", name, file, line);
+        
+        m_temp Scratch = GetScratch(0, 0);
         va_list args;
         va_start(args, format);
-        vfprintf(stdout, format, args);
+        string8 FormatedLog = PushStr8FV(Scratch.Arena, format, args);
         va_end(args);
-        fprintf(stdout, "%s", "\n");
+        ReleaseScratch(Scratch);
+        
+        fprintf(stdout, "%s (%s:%i) %s\n", name, file, line, FormatedLog.cstr);
     }
     
+#if OS_WINDOWS
     // NOTE(fakhri): Log to VS output, etc.
     {
         local_persist char string[4096] = {0};
@@ -46,10 +50,9 @@ _DebugLog(i32 flags, char *file, int line, char *format, ...)
         va_start(args, format);
         vsnprintf(string, sizeof(string), format, args);
         va_end(args);
-#if OS_WINDOWS
         OutputDebugStringA(string);
         OutputDebugStringA("\n");
-#endif
     }
+#endif
     
 }

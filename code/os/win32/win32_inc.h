@@ -8,5 +8,6 @@
 #include "win32_memory.h"
 #include "win32_semaphore.h"
 #include "win32_network.h"
+#include "win32_sleep.h"
 
 #endif //WIN32_INC_H

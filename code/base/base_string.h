@@ -3,8 +3,6 @@
 #ifndef BASE_STRING_H
 #define BASE_STRING_H
 
-#include "third_party/stb_sprintf.h"
-
 typedef struct string8 string8;
 struct string8
 {
@@ -38,7 +36,7 @@ struct string8_node
     string8 String;
 };
 
-typedef struct string8_list ssttring8_list;
+typedef struct string8_list string8_list;
 struct string8_list
 {
     string8_node *First;
@@ -103,7 +101,11 @@ internal u64 CalculateCStringLength(char *cstr);
 //- NOTE(fakhri): Basic Constructors
 internal string8 Str8(u8 *str, u64 size);
 #define Str8C(cstring) Str8((u8 *)(cstring), CalculateCStringLength(cstring))
+#if LANG_CPP
 #define Str8Lit(s) Str8((u8 *)(s), sizeof(s)-1)
+#elif LANG_C
+#define Str8Lit(s) ((string8){(u8 *)(s), sizeof(s)-1})
+#endif
 #define Str8LitComp(s) {(u8 *)(s), sizeof(s)-1}
 internal string8 Str8Range(u8 *First, u8 *one_past_Last);
 internal string16 Str16(u16 *str, u64 size);
@@ -165,7 +167,7 @@ internal string8 Str8ChopLastSlash(string8 str);
 internal string8 Str8ChopFirstQuestionMark(string8 str);
 internal string8 Str8ChopFirstOccurence(string8 String, string8 Needle);
 internal string8 Str8ChopLeadingSpaces(string8 String);
-
+internal string8 Str8SkipFirstEndLine(string8 String);
 ////////////////////////////////
 //~ NOTE(fakhri): Numeric Conversions
 
@@ -173,5 +175,8 @@ internal u64 u64FromStr8(string8 str, u32 radix);
 internal i64 CStyleIntFromStr8(string8 str);
 internal r64 r64FromStr8(string8 str);
 internal string8 CStyleHexStringFromu64(m_arena *arena, u64 x, b32 caps);
+
+#define STB_SPRINTF_IMPLEMENTATION
+#include "third_party/stb_sprintf.h"
 
 #endif //BASE_STRING_H

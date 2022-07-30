@@ -3,6 +3,7 @@
 #ifndef BASE_RANDOM_H
 #define BASE_RANDOM_H
 
+typedef struct random_generator random_generator;
 struct random_generator
 {
     u32 RandomNumber;
@@ -17,6 +18,5 @@ internal u32      NextRandomNumber(random_generator *RandomGenerator);
 internal u32      NextRandomNumberMinMax(random_generator *RandomGenerator, u32 min, u32 max);
 // NOTE(fakhri): get normalized random float number
 internal r32      NextRandomNumberNF(random_generator *RandomGenerator);
-internal string8  CreateBase64StringNotInSet(m_arena *Arena, random_generator *RandomGenerator, string_hashset *Blacklist, u32 StringLength);
-
+internal string8  CreateBase64StringNotInSet(m_arena *Arena, random_generator *RandomGenerator, hashtable *Blacklist, u32 StringLength);
 #endif //BASE_RANDOM_H

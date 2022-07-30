@@ -1,4 +1,3 @@
-
 // stb_sprintf - v1.09 - public domain snprintf() implementation
 // originally by Jeff Roberts / RAD Game Tools, 2015/10/20
 // http://github.com/nothings/stb
@@ -582,7 +581,7 @@ cl = lg;                                 \
                 //- rjf: get string length
                 s = (char *)str.str;
                 sn = (const char *)(str.str + str.size);
-                l = (u32)str.size;
+                l = str.size;
                 
                 //- rjf: clamp to precision
                 lead[0] = 0;
@@ -1054,10 +1053,10 @@ cl = lg;                                 \
             case 'd': // integer
             // get the integer and abs it
             if (fl & STBSP__INTMAX) {
-                stbsp__int64 i64 = va_arg(va, stbsp__int64);
-                n64 = (stbsp__uint64)i64;
-                if ((f[0] != 'u') && (i64 < 0)) {
-                    n64 = (stbsp__uint64)-i64;
+                stbsp__int64 i64_ = va_arg(va, stbsp__int64);
+                n64 = (stbsp__uint64)i64_;
+                if ((f[0] != 'u') && (i64_ < 0)) {
+                    n64 = (stbsp__uint64)-i64_;
                     fl |= STBSP__NEGATIVE;
                 }
             } else {
@@ -1858,7 +1857,6 @@ static stbsp__int32 stbsp__real_to_str(char const **start, stbsp__uint32 *len, c
 #undef STBSP__UNALIGNED
 
 #endif // STB_SPRINTF_IMPLEMENTATION
-
 /*
 ------------------------------------------------------------------------------
 This software is available under 2 licenses -- choose whichever you prefer.

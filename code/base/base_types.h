@@ -76,8 +76,10 @@
 #if OS_WINDOWS
 #pragma section(".roglob", read)
 #define read_only __declspec(allocate(".roglob"))
+#elif COMPILER_GCC
+# define read_only __attribute__((section(".rodata#")))
 #else
-// TODO(fakhri): figure out if this benefit is possible on non-Windows
+// TODO(fakhri): figure out if this benefit is possible on other platforms
 #define read_only
 #endif
 
@@ -89,7 +91,7 @@
 #define MemoryMove memmove
 #define MemorySet  memset
 
-#define MemoryCopyStruct(d,s) Statement(Assert(sizeof(*(d))==sizeof(*(s))); MemoryCopy((d),(s),sizeof(*(d)));)
+#define MemoryCopyStruct(d,s) Statement(StaticAssert(sizeof(*(d))==sizeof(*(s)), checking_same_struct_size); MemoryCopy((d),(s),sizeof(*(d)));)
 #define MemoryCopyArray(d,s) Statement(Assert(sizeof(d)==sizeof(s)); MemoryCopy((d),(s),sizeof(s));)
 
 #define MemoryZero(p,s) MemorySet((p), 0, (s))
@@ -133,9 +135,10 @@
 ((l)->Next=(n),(l)=(n),zset((n)->Next)))
 #define QueuePushFront_NZ(f,l,n,Next,zchk,zset) (zchk(f) ? (((f) = (l) = (n)), zset((n)->Next)) :\
 ((n)->Next = (f)), ((f) = (n)))
-#define QueuePop_NZ(f,l,Next,zset) ((f)==(l)?\
+#define QueuePop_NZ(f,l,next,zset) ((f)==(l)?\
 (zset(f),zset(l)):\
-(f)=(f)->Next)
+((f)=(f)->next))
+
 #define StackPush_N(f,n,Next) ((n)->Next=(f),(f)=(n))
 #define StackPop_NZ(f,Next,zchk) (zchk(f)?0:((f)=(f)->Next))
 
@@ -190,34 +193,42 @@ typedef i64      b64;
 typedef float    r32;
 typedef double   r64;
 typedef size_t   usize;
+typedef ssize_t  isize;
 typedef void void_function(void);
 
+#if LANG_C
+enum
+{
+    false,
+    true,
+};
+#endif
 ////////////////////////////////
 //~ NOTE(fakhri): Limits
 
-read_only global u8 U8Max = 0xFF;
-read_only global u8 U8Min = 0;
+read_only global u8 u8Max = 0xFF;
+read_only global u8 u8Min = 0;
 
 read_only global u16 u16Max = 0xFFFF;
-read_only global u16 U16Min = 0;
+read_only global u16 u16Min = 0;
 
-read_only global u32 U32Max = 0xFFFFFFFF;
-read_only global u32 U32Min = 0;
+read_only global u32 u32Max = 0xFFFFFFFF;
+read_only global u32 u32Min = 0;
 
-read_only global u64 U64Max = 0xFFFFFFFFFFFFFFFF;
+read_only global u64 u64Max = 0xFFFFFFFFFFFFFFFF;
 read_only global u64 u64Min = 0;
 
-read_only global i8 I8Max = 0x7F;
-read_only global i8 I8Min = -1 - 0x7F;
+read_only global i8 i8Max = 0x7F;
+read_only global i8 i8Min = -1 - 0x7F;
 
-read_only global i16 I16Max = 0x7FFF;
-read_only global i16 I16Min = -1 - 0x7FFF;
+read_only global i16 i16Max = 0x7FFF;
+read_only global i16 i16Min = -1 - 0x7FFF;
 
-read_only global i32 I32Max = 0x7FFFFFFF;
-read_only global i32 I32Min = -1 - 0x7FFFFFFF;
+read_only global i32 i32Max = 0x7FFFFFFF;
+read_only global i32 i32Min = -1 - 0x7FFFFFFF;
 
-read_only global i64 I64Max = 0x7FFFFFFFFFFFFFFF;
-read_only global i64 I64Min = -1 - 0x7FFFFFFFFFFFFFFF;
+read_only global i64 i64Max = 0x7FFFFFFFFFFFFFFF;
+read_only global i64 i64Min = -1 - 0x7FFFFFFFFFFFFFFF;
 
 read_only global u32 Signr32 = 0x80000000;
 read_only global u32 Exponentr32 = 0x7F800000;
@@ -299,43 +310,43 @@ read_only global u64 Bitmask[] =
     0xFFFFFFFFFFFFFFFF,
 };
 
-read_only global u32 Bit1  = 1u << 0;
-read_only global u32 Bit2  = 1u << 1;
-read_only global u32 Bit3  = 1u << 2;
-read_only global u32 Bit4  = 1u << 3;
-read_only global u32 Bit5  = 1u << 4;
-read_only global u32 Bit6  = 1u << 5;
-read_only global u32 Bit7  = 1u << 6;
-read_only global u32 Bit8  = 1u << 7;
-read_only global u32 Bit9  = 1u << 8;
-read_only global u32 Bit10 = 1u << 9;
-read_only global u32 Bit11 = 1u << 10;
-read_only global u32 Bit12 = 1u << 11;
-read_only global u32 Bit13 = 1u << 12;
-read_only global u32 Bit14 = 1u << 13;
-read_only global u32 Bit15 = 1u << 14;
-read_only global u32 Bit16 = 1u << 15;
-read_only global u32 Bit17 = 1u << 16;
-read_only global u32 Bit18 = 1u << 17;
-read_only global u32 Bit19 = 1u << 18;
-read_only global u32 Bit20 = 1u << 19;
-read_only global u32 Bit21 = 1u << 20;
-read_only global u32 Bit22 = 1u << 21;
-read_only global u32 Bit23 = 1u << 22;
-read_only global u32 Bit24 = 1u << 23;
-read_only global u32 Bit25 = 1u << 24;
-read_only global u32 Bit26 = 1u << 25;
-read_only global u32 Bit27 = 1u << 26;
-read_only global u32 Bit28 = 1u << 27;
-read_only global u32 Bit29 = 1u << 28;
-read_only global u32 Bit30 = 1u << 29;
-read_only global u32 Bit31 = 1u << 30;
-read_only global u32 Bit32 = 1u << 31;
+read_only global u32 Bit1  = 1 << 0;
+read_only global u32 Bit2  = 1 << 1;
+read_only global u32 Bit3  = 1 << 2;
+read_only global u32 Bit4  = 1 << 3;
+read_only global u32 Bit5  = 1 << 4;
+read_only global u32 Bit6  = 1 << 5;
+read_only global u32 Bit7  = 1 << 6;
+read_only global u32 Bit8  = 1 << 7;
+read_only global u32 Bit9  = 1 << 8;
+read_only global u32 Bit10 = 1 << 9;
+read_only global u32 Bit11 = 1 << 10;
+read_only global u32 Bit12 = 1 << 11;
+read_only global u32 Bit13 = 1 << 12;
+read_only global u32 Bit14 = 1 << 13;
+read_only global u32 Bit15 = 1 << 14;
+read_only global u32 Bit16 = 1 << 15;
+read_only global u32 Bit17 = 1 << 16;
+read_only global u32 Bit18 = 1 << 17;
+read_only global u32 Bit19 = 1 << 18;
+read_only global u32 Bit20 = 1 << 19;
+read_only global u32 Bit21 = 1 << 20;
+read_only global u32 Bit22 = 1 << 21;
+read_only global u32 Bit23 = 1 << 22;
+read_only global u32 Bit24 = 1 << 23;
+read_only global u32 Bit25 = 1 << 24;
+read_only global u32 Bit26 = 1 << 25;
+read_only global u32 Bit27 = 1 << 26;
+read_only global u32 Bit28 = 1 << 27;
+read_only global u32 Bit29 = 1 << 28;
+read_only global u32 Bit30 = 1 << 29;
+read_only global u32 Bit31 = 1 << 30;
+read_only global u32 Bit32 = 1 << 31;
 
-read_only global r32 r32Max = 3.4028234664e+38f;
-read_only global r32 r32Min = -3.4028234664e+38f;
-read_only global r32 r32SmallestPositive = 1.1754943508e-38f;
-read_only global r32 r32Epsilon = 5.96046448e-8f;
+read_only global r32 r32Max = 3.4028234664e+38;
+read_only global r32 r32Min = -3.4028234664e+38;
+read_only global r32 r32SmallestPositive = 1.1754943508e-38;
+read_only global r32 r32Epsilon = 5.96046448e-8;
 read_only global r32 r32Tau = 6.28318530718f;
 read_only global r32 r32Pi = 3.14159265359f;
 
@@ -398,21 +409,37 @@ typedef enum comparison
 comparison;
 
 ////////////////////////////////
+//~ NOTE(fakhri): Toggles
+#define ENABLE_ASSERTS DEBUG_BUILD
+#define ENABLE_LOGS    DEBUG_BUILD
+
+////////////////////////////////
 //~ NOTE(fakhri): Assertions
 
 #undef Assert
 
+#if ENABLE_ASSERTS
 #define AssertBreak (*(volatile int *)0 = 0)
 #define Assert(b) Statement(if (!(b)) { Log("Assertion Assert(%s) faild", #b); AssertBreak; })
+#else
+#define AssertBreak
+#define Assert(b) (b)
+#endif
 #define StaticAssert(c,label) u8 static_Assert_##label[(c)?(1):(-1)]
 #define NotImplemented Assert(!"Not Implemented")
 #define InvalidPath Assert(!"Invalid Path")
 
 ////////////////////////////////
 //~ NOTE(fakhri): Logging
+#if ENABLE_LOGS
 #define Log(...)         _DebugLog(0,           __FILE__, __LINE__, __VA_ARGS__)
 #define LogWarning(...)  _DebugLog(Log_Warning, __FILE__, __LINE__, __VA_ARGS__)
 #define LogError(...)    _DebugLog(Log_Error,   __FILE__, __LINE__, __VA_ARGS__)
+#else
+#define Log(...)
+#define LogWarning(...)
+#define LogError(...)
+#endif
 
 #define Log_Warning (1<<0)
 #define Log_Error   (1<<1)
@@ -437,11 +464,11 @@ AbsoluteValuer32(r32 F)
 internal b32 Compare_u64(u64 A, u64 B, comparison Comparison);
 
 #if OS_LINUX
+#include <semaphore.h>
 typedef sem_t semaphore_handle;
 typedef i32 socket_handle;
-#elif OS_WINDOWS
-typedef HANDLE semaphore_handle;
-typedef SOCKET socket_handle;
 #else
+#error add OS specific types
 #endif
+
 #endif //BASE_TYPES_H
