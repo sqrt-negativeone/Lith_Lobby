@@ -3,8 +3,8 @@
 #ifndef APP_MAIN_H
 #define APP_MAIN_H
 
-#define HOST_PORT   "1234"
-#define PLAYER_PORT "1235"
+#define HOST_PORT   "42069"
+#define PLAYER_PORT "6969"
 #define GameIDLength 10
 
 typedef struct host host;
