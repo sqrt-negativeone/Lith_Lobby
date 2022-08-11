@@ -171,8 +171,9 @@ int main()
                         Input->Arena = Arena;
                         Input->App = App;
                         Input->Address = Addr.sin_addr.s_addr;
+                        Input->Port = Addr.sin_port;
                         Input->EpollFD = EpollFD;
-                        
+                        Log("received connection from %d:%d", Input->Address, Input->Port);
                         Input->EpollContext = PushStructZero(Arena, epoll_context);
                         Input->EpollContext->Origin = epoll_origin_HostCloseSignal;
                         Input->EpollContext->Socket = HostSocket;

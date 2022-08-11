@@ -28,12 +28,14 @@ ProcessPlayerRequest(void *Input)
         {
             Begin_SyncSection_Read(&App->Sync);
             host *Host = HostStorage_FindHost(&App->Hosts, GameID);
-            End_SyncSection_Read(&App->Sync);
             if (Host)
             {
                 OS_NetworkSendAllBytes(PlayerInput->Socket, &Host->Address, sizeof(Host->Address));
+                OS_NetworkSendAllBytes(PlayerInput->Socket, &Host->Port, sizeof(Host->Port));
             }
+            End_SyncSection_Read(&App->Sync);
         }
+        
     }
     
     OS_CloseSocket(PlayerInput->Socket);
@@ -72,6 +74,7 @@ ProcessHostRequest(void *Input)
     host Host;
     Host.Socket = HostContext->Socket;
     Host.Address = HostContext->Address;
+    Host.Port = HostContext->Port;
     HostContext->GameIDHashSlot = HostStorage_InsertHost(App->Arena, &App->Hosts, GameID, &Host);
     End_SyncSection_Write(&App->Sync);
     

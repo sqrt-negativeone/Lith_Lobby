@@ -12,6 +12,7 @@ struct host
 {
     socket_handle Socket;
     u32 Address;
+    u16 Port;
 };
 
 typedef hashtable host_storage;
@@ -41,6 +42,7 @@ struct host_context
     m_arena *Arena;
     socket_handle Socket;
     u32 Address;
+    u16 Port;
     app_context *App;
     hashtable_slot *GameIDHashSlot;
     
