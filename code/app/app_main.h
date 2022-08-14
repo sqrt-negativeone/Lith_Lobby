@@ -33,6 +33,8 @@ struct player_input
 {
     m_arena *Arena;
     socket_handle Socket;
+    u32 Address;
+    u16 Port;
     app_context *App;
 };
 

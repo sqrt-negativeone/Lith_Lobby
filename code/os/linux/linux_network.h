@@ -25,7 +25,7 @@
 
 internal socket_handle Linux_AcceptSocket(socket_handle Socket, socket_address *Addr, int *AddrLen);
 internal socket_handle Linux_MakeSocket(int Domain, int Type, int Protocol);
-internal socket_handle Linux_ConnectSocket(socket_handle Socket, const struct sockaddr *Addr, socklen_t AddrLen);
+internal b32           Linux_ConnectSocket(socket_handle Socket, const struct sockaddr *Addr, socklen_t AddrLen);
 internal b32           Linux_CloseSocket(socket_handle Socket);
 internal socket_handle Linux_OpenClientSocket(char *Hostname, char *Port);
 internal socket_handle Linux_OpenListenSocket(char *Port);

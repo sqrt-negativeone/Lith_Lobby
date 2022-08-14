@@ -1,17 +1,43 @@
+#include <emmintrin.h>
 
 internal void
 WorkQueue_SetupQueue(work_queue *WorkQueue, u32 WorkersCount)
 {
-    OS_CreateSemaphore(&WorkQueue->WaitingThreadsSemaphore, 0, WorkersCount);
-    OS_CreateSemaphore(&WorkQueue->ProducersMutex, 1, 1);
+    OS_CreateSemaphore(&WorkQueue->AvailableWorkSemaphore, 0, WorkersCount);
+    
+    WorkQueue->WorkersCount = WorkersCount;
+}
+
+internal void
+SignalWaitingWorkers(work_queue *WorkQueue)
+{
+    for (;;)
+    {
+        i64 SemValue = WorkQueue->AvailableWorkSemaphoreValue;
+        if (SemValue + 1 < (i64)WorkQueue->WorkersCount)
+        {
+            if (AtomicCompareAndExchange(&WorkQueue->AvailableWorkSemaphoreValue, SemValue, SemValue + 1))
+            {
+                OS_ReleaseSemaphore(&WorkQueue->AvailableWorkSemaphore);
+            }
+            else
+            {
+                continue;
+            }
+        }
+        break;
+    }
+    
 }
 
 internal next_work
 WorkQueue_GetNextWorkToDo(work_queue *WorkQueue)
 {
     next_work Result = ZERO_STRUCT;
+    
     u64 OldHead = WorkQueue->Head;
-    if (!WorkQueue_IsEmpty(WorkQueue))
+    
+    if (WorkQueue->Head != WorkQueue->CommittedTail)
     {
         u64 EntryIndex = OldHead % ArrayCount(WorkQueue->Entries);
         Result.WorkEntry = WorkQueue->Entries[EntryIndex];
@@ -20,24 +46,23 @@ WorkQueue_GetNextWorkToDo(work_queue *WorkQueue)
             Result.IsValid = true;
         }
     }
+    
     return Result;
 }
 
 internal b32
-WorkQueue_ProcessOneEntry(work_queue *WorkQueue)
+WorkQueue_ProcessOneEntry(worker_id WorkerID, work_queue *WorkQueue)
 {
     b32 Result = false;
-    while(!WorkQueue_IsEmpty(WorkQueue))
+    
+    next_work NextWorkToDo = WorkQueue_GetNextWorkToDo(WorkQueue);
+    if (NextWorkToDo.IsValid)
     {
-        next_work NextWorkToDo = WorkQueue_GetNextWorkToDo(WorkQueue);
-        if (NextWorkToDo.IsValid)
-        {
-            Result = true;
-            work_entry WorkEntry = NextWorkToDo.WorkEntry;
-            WorkEntry.Work(WorkEntry.Data);
-            break;
-        }
+        Result = true;
+        work_entry WorkEntry = NextWorkToDo.WorkEntry;
+        WorkEntry.Work(WorkerID, WorkEntry.Data);
     }
+    Assert(WorkQueue->Head <= WorkQueue->CommittedTail);
     return Result;
 }
 
@@ -45,20 +70,20 @@ internal b32
 WorkQueue_PushEntrySP(work_queue *WorkQueue, worker_work *Work, void *Data)
 {
     b32 Result = false;
-    
-    if (!WorkQueue_IsFull(WorkQueue))
+    Assert(Work && Data);
+    if ((WorkQueue->CommittedTail - WorkQueue->Head) != ArrayCount(WorkQueue->Entries))
     {
         Result = true;
-        u64 EntryIndex = WorkQueue->Tail % ArrayCount(WorkQueue->Entries);
+        u64 EntryIndex = WorkQueue->CommittedTail % ArrayCount(WorkQueue->Entries);
         
         WorkQueue->Entries[EntryIndex].Work = Work;
         WorkQueue->Entries[EntryIndex].Data = Data;
         
         CompletePreviousWritesBeforeFutureWrites();
         // NOTE(fakhri): make the changes visible
-        ++ WorkQueue->Tail;
+        ++ WorkQueue->CommittedTail;
         // NOTE(fakhri): wake up any worker thread that is waiting for a work entry
-        OS_ReleaseSemaphore(&WorkQueue->WaitingThreadsSemaphore);
+        SignalWaitingWorkers(WorkQueue);
     }
     
     return Result;
@@ -68,22 +93,66 @@ internal b32
 WorkQueue_PushEntry(work_queue *WorkQueue, worker_work *Work, void *Data)
 {
     b32 Result = false;
-    OS_AcquireSemaphore(&WorkQueue->ProducersMutex);
-    Result = WorkQueue_PushEntrySP(WorkQueue, Work, Data);
-    OS_ReleaseSemaphore(&WorkQueue->ProducersMutex);
+    
+    u64 OurTail = AtomicIncrement(&WorkQueue->ClaimedTail);
+    
+    if (OurTail - WorkQueue->Head >= ArrayCount(WorkQueue->Entries))
+    {
+        // NOTE(fakhri): queue was full
+        u64 Expected = OurTail + 1;
+        while((OurTail - WorkQueue->Head >= ArrayCount(WorkQueue->Entries)) &&
+              (!AtomicCompareAndExchange(&WorkQueue->ClaimedTail, Expected, OurTail)))
+        {
+            _mm_pause();
+            Expected = OurTail + 1;
+        }
+    }
+    
+    if (OurTail - WorkQueue->Head < ArrayCount(WorkQueue->Entries))
+    {
+        u64 EntryIndex = OurTail % ArrayCount(WorkQueue->Entries);
+        
+        WorkQueue->Entries[EntryIndex].Work = Work;
+        WorkQueue->Entries[EntryIndex].Data = Data;
+        
+        u64 Expected = OurTail;
+        while(!AtomicCompareAndExchange(&WorkQueue->CommittedTail, Expected, OurTail + 1))
+        {
+            _mm_pause();
+            Expected = OurTail;
+        }
+        
+        Result = true;
+        // NOTE(fakhri): wake up any worker thread that is waiting for a work entry
+        SignalWaitingWorkers(WorkQueue);
+    }
+    
     return Result;
 }
 
-internal b32
-WorkQueue_IsEmpty(work_queue *WorkQueue)
+internal
+SYS_THREAD_SIG(WorkerThreadMain)
 {
-    b32 Result = (WorkQueue->Head == WorkQueue->Tail);
-    return Result;
-}
-
-internal b32
-WorkQueue_IsFull(work_queue *WorkQueue)
-{
-    b32 Result = (WorkQueue->Tail - WorkQueue->Head) == ArrayCount(WorkQueue->Entries);
-    return Result;
+    thread_ctx WorkerThreadContext = MakeThreadContext();
+    SetThreadContext(&WorkerThreadContext);
+    
+    struct worker_info *WorkerInfo = (struct worker_info *)Input;
+    work_queue *WorkQueue = (work_queue *)WorkerInfo->WorkQueue;
+    for(;;)
+    {
+        next_work WorkToDo = WorkQueue_GetNextWorkToDo(WorkQueue);
+        if (WorkToDo.IsValid)
+        {
+            WorkToDo.WorkEntry.Work(WorkerInfo->WorkerID, WorkToDo.WorkEntry.Data);
+        }
+        else
+        {
+            // NOTE(fakhri): work queue was empty, call the os
+            // to see what should we do about it
+            Log("Thread[%d] going to sleep after finding nothing to do", WorkerInfo->WorkerID);
+            AtomicDecrement(&WorkQueue->AvailableWorkSemaphoreValue);
+            OS_AcquireSemaphore(&WorkQueue->AvailableWorkSemaphore);
+        }
+    }
+    return 0;
 }

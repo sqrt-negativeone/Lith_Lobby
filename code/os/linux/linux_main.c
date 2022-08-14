@@ -25,27 +25,6 @@
 global thread_ctx MainThreadContext;
 global work_queue LinuxWorkQueue;
 
-internal void *
-WorkerThreadMain(void *Input)
-{
-    thread_ctx WorkerThreadContext = MakeThreadContext();
-    SetThreadContext(&WorkerThreadContext);
-    
-    work_queue *WorkQueue = (work_queue *)Input;
-    
-    for(;;)
-    {
-        b32 DidWork = WorkQueue_ProcessOneEntry(WorkQueue);
-        if (!DidWork)
-        {
-            // NOTE(fakhri): work queue was empty, call the os
-            // to see what should we do about it
-            OS_AcquireSemaphore(&WorkQueue->WaitingThreadsSemaphore);
-        }
-    }
-    return 0;
-}
-
 enum epoll_origin
 {
     epoll_origin_PlayerListen,
@@ -69,20 +48,26 @@ int main()
     MainThreadContext = MakeThreadContext();
     SetThreadContext(&MainThreadContext);
     
-    WorkQueue_SetupQueue(&LinuxWorkQueue, WORKER_THREADS_INITIAL_COUNT);
+    m_arena *AppArena = M_ArenaAlloc(Megabytes(100));
+    app_context *App = MakeAppContext(AppArena);
     
-    
+    int number_of_processors = sysconf(_SC_NPROCESSORS_ONLN);
+    u32 WorkerThreadsCount = Max(number_of_processors - 1, 1);
+    WorkQueue_SetupQueue(&LinuxWorkQueue, WorkerThreadsCount);
     // NOTE(fakhri): launch worker threads
     for (u32 ThreadIndex = 0;
-         ThreadIndex < WORKER_THREADS_INITIAL_COUNT;
+         ThreadIndex < WorkerThreadsCount;
          ++ThreadIndex)
     {
+        struct worker_info *WorkerInfo = PushStructZero(AppArena, struct worker_info);
+        
+        WorkerInfo->WorkQueue = &LinuxWorkQueue;
+        WorkerInfo->WorkerID = ThreadIndex;
+        
         pthread_t ThreadID;
-        pthread_create(&ThreadID, 0, WorkerThreadMain, &LinuxWorkQueue);
+        pthread_create(&ThreadID, 0, WorkerThreadMain, WorkerInfo);
         pthread_detach(ThreadID);
     }
-    
-    app_context *App = MakeAppContext(M_ArenaAlloc(Megabytes(100)));
     
     socket_handle PlayerListenSocket = OS_OpenListenSocket(PLAYER_PORT);
     socket_handle HostListenSocket = OS_OpenListenSocket(HOST_PORT);
@@ -93,7 +78,6 @@ int main()
         epoll_context PlayerEpollContext;
         epoll_context HostEpollContext;
         
-        // NOTE(fakhri): register http server
         {
             PlayerEpollContext.Origin = epoll_origin_PlayerListen;
             PlayerEpollContext.Socket = PlayerListenSocket;
@@ -104,7 +88,6 @@ int main()
             Assert(!epoll_ctl(EpollFD, EPOLL_CTL_ADD, PlayerListenSocket, &PlayerEpollEvent));
         }
         
-        // NOTE(fakhri): register rtmp server
         {
             HostEpollContext.Origin = epoll_origin_HostListen;
             HostEpollContext.Socket = HostListenSocket;
@@ -142,15 +125,19 @@ int main()
                 } break;
                 case epoll_origin_PlayerListen:
                 {
-                    socket_handle PlayerSocket = OS_AcceptSocket(PlayerListenSocket, 0, 0);
-                    
+                    struct sockaddr_in Addr;
+                    int AddrLen = sizeof(Addr);
+                    MemoryZeroStruct(&Addr);
+                    socket_handle PlayerSocket = OS_AcceptSocket(PlayerListenSocket, (socket_address *)&Addr, &AddrLen);
                     if (PlayerSocket != InvalidSocket)
                     {
-                        m_arena *Arena = M_ArenaAlloc(Megabytes(1));
-                        player_input *Input = PushStructZero(Arena, player_input);
+                        m_arena *PlayerArena = M_ArenaAlloc(Megabytes(1));
+                        player_input *Input = PushStructZero(PlayerArena, player_input);
                         Input->Socket = PlayerSocket;
-                        Input->Arena = Arena;
+                        Input->Arena = PlayerArena;
                         Input->App = App;
+                        Input->Address = Addr.sin_addr.s_addr;
+                        Input->Port = Addr.sin_port;
                         WorkQueue_PushEntrySP(&LinuxWorkQueue, ProcessPlayerRequest, Input);
                     }
                     ShouldResume = true;
@@ -164,17 +151,17 @@ int main()
                     Log("the ip of the host is %d", Addr.sin_addr.s_addr);
                     if (HostSocket != InvalidSocket)
                     {
-                        m_arena *Arena = M_ArenaAlloc(Megabytes(1));
-                        host_context *Input = PushStructZero(Arena, host_context);
+                        m_arena *HostArena = M_ArenaAlloc(Megabytes(1));
+                        host_context *Input = PushStructZero(HostArena, host_context);
                         
                         Input->Socket = HostSocket;
-                        Input->Arena = Arena;
+                        Input->Arena = HostArena;
                         Input->App = App;
                         Input->Address = Addr.sin_addr.s_addr;
                         Input->Port = Addr.sin_port;
                         Input->EpollFD = EpollFD;
                         Log("received connection from %d:%d", Input->Address, Input->Port);
-                        Input->EpollContext = PushStructZero(Arena, epoll_context);
+                        Input->EpollContext = PushStructZero(HostArena, epoll_context);
                         Input->EpollContext->Origin = epoll_origin_HostCloseSignal;
                         Input->EpollContext->Socket = HostSocket;
                         Input->EpollContext->Data = Input;

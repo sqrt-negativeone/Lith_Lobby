@@ -465,8 +465,11 @@ internal b32 Compare_u64(u64 A, u64 B, comparison Comparison);
 
 #if OS_LINUX
 #include <semaphore.h>
+#include <pthread.h>
+typedef pthread_mutex_t mutex_handle;
 typedef sem_t semaphore_handle;
-typedef i32 socket_handle;
+typedef int socket_handle;
+#define SYS_THREAD_SIG(ThreadName) void *ThreadName(void *Input)
 #else
 #error add OS specific types
 #endif

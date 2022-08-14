@@ -12,8 +12,8 @@ MakeAppContext(m_arena *Arena)
     return App;
 }
 
-internal void
-ProcessPlayerRequest(void *Input)
+internal
+WORK_TASK_SIG(ProcessPlayerRequest)
 {
     player_input *PlayerInput = (player_input *)Input;
     app_context *App = PlayerInput->App;
@@ -32,6 +32,9 @@ ProcessPlayerRequest(void *Input)
             {
                 OS_NetworkSendAllBytes(PlayerInput->Socket, &Host->Address, sizeof(Host->Address));
                 OS_NetworkSendAllBytes(PlayerInput->Socket, &Host->Port, sizeof(Host->Port));
+                
+                OS_NetworkSendAllBytes(Host->Socket, &PlayerInput->Address, sizeof(PlayerInput->Address));
+                OS_NetworkSendAllBytes(Host->Socket, &PlayerInput->Port, sizeof(PlayerInput->Port));
             }
             End_SyncSection_Read(&App->Sync);
         }
@@ -42,8 +45,8 @@ ProcessPlayerRequest(void *Input)
     M_ArenaRelease(PlayerInput->Arena);
 }
 
-internal void
-ProcessHostRequest(void *Input)
+internal
+WORK_TASK_SIG(ProcessHostRequest)
 {
     host_context *HostContext = (host_context *)Input;
     app_context *App = HostContext->App;

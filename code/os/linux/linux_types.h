@@ -8,6 +8,7 @@
 #define AtomicCompareAndExchange(Address, ExpectedValue, ExchangeValue) __atomic_compare_exchange_n (Address, &ExpectedValue, ExchangeValue, 0, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST)
 #define CompletePreviousWritesBeforeFutureWrites() __atomic_thread_fence (__ATOMIC_SEQ_CST)
 #define AtomicIncrement(Address) __atomic_fetch_add (Address, 1, __ATOMIC_SEQ_CST)
+#define AtomicDecrement(Address) __atomic_fetch_sub (Address, 1, __ATOMIC_SEQ_CST)
 #endif
 
 #endif //LINUX_TYPES_H

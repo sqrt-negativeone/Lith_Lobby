@@ -35,15 +35,10 @@ Linux_MakeSocket(int Domain, int Type, int Protocol)
 }
 
 
-internal socket_handle
+internal b32
 Linux_ConnectSocket(socket_handle Socket, const struct sockaddr *Addr, socklen_t AddrLen)
 {
-    socket_handle Result = 0;
-    Result = connect(Socket, Addr, AddrLen);
-    if (Result == -1)
-    {
-        Result = InvalidSocket;
-    }
+    b32 Result = (connect(Socket, Addr, AddrLen) == 0);
     return Result;
 }
 
@@ -127,7 +122,10 @@ Linux_OpenClientSocket(char *hostname, char *port)
         clientfd = Linux_MakeSocket(p->ai_family, p->ai_socktype, p->ai_protocol);
         if (clientfd < 0) continue;
         // NOTE(fakhri): connect to the socket
-        if (Linux_ConnectSocket(clientfd, p->ai_addr, (socklen_t)p->ai_addrlen) != -1) break;
+        const int OptionValue = 1;
+        if (!setsockopt(clientfd, SOL_SOCKET, SO_REUSEADDR, &OptionValue, sizeof(OptionValue)) &&
+            !setsockopt(clientfd, SOL_SOCKET, SO_REUSEPORT, &OptionValue, sizeof(OptionValue)) &&
+            Linux_ConnectSocket(clientfd, p->ai_addr, (socklen_t)p->ai_addrlen)) break;
         // NOTE(fakhri): close the client socket to avoid memory leak
         Linux_CloseSocket(clientfd);
     }
