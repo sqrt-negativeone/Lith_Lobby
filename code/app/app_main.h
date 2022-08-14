@@ -11,8 +11,11 @@ typedef struct host host;
 struct host
 {
     socket_handle Socket;
-    u32 Address;
-    u16 Port;
+    
+    u32 PublicAddress;
+    u16 PublicPort;
+    u32 LocalAddress;
+    u16 LocalPort;
 };
 
 typedef hashtable host_storage;
@@ -33,8 +36,8 @@ struct player_input
 {
     m_arena *Arena;
     socket_handle Socket;
-    u32 Address;
-    u16 Port;
+    u32 PublicAddress;
+    u16 PublicPort;
     app_context *App;
 };
 
@@ -43,8 +46,8 @@ struct host_context
 {
     m_arena *Arena;
     socket_handle Socket;
-    u32 Address;
-    u16 Port;
+    u32 PublicAddress;
+    u16 PublicPort;
     app_context *App;
     hashtable_slot *GameIDHashSlot;
     

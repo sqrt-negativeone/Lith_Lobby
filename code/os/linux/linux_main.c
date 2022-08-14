@@ -136,8 +136,8 @@ int main()
                         Input->Socket = PlayerSocket;
                         Input->Arena = PlayerArena;
                         Input->App = App;
-                        Input->Address = Addr.sin_addr.s_addr;
-                        Input->Port = Addr.sin_port;
+                        Input->PublicAddress = Addr.sin_addr.s_addr;
+                        Input->PublicPort = Addr.sin_port;
                         WorkQueue_PushEntrySP(&LinuxWorkQueue, ProcessPlayerRequest, Input);
                     }
                     ShouldResume = true;
@@ -157,10 +157,10 @@ int main()
                         Input->Socket = HostSocket;
                         Input->Arena = HostArena;
                         Input->App = App;
-                        Input->Address = Addr.sin_addr.s_addr;
-                        Input->Port = Addr.sin_port;
+                        Input->PublicAddress = Addr.sin_addr.s_addr;
+                        Input->PublicPort = Addr.sin_port;
                         Input->EpollFD = EpollFD;
-                        Log("received connection from %d:%d", Input->Address, Input->Port);
+                        Log("received connection from %d:%d", Input->PublicAddress, Input->PublicPort);
                         Input->EpollContext = PushStructZero(HostArena, epoll_context);
                         Input->EpollContext->Origin = epoll_origin_HostCloseSignal;
                         Input->EpollContext->Socket = HostSocket;
