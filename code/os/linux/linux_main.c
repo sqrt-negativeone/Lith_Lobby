@@ -125,19 +125,15 @@ int main()
                 } break;
                 case epoll_origin_PlayerListen:
                 {
-                    struct sockaddr_in Addr;
-                    int AddrLen = sizeof(Addr);
-                    MemoryZeroStruct(&Addr);
-                    socket_handle PlayerSocket = OS_AcceptSocket(PlayerListenSocket, (socket_address *)&Addr, &AddrLen);
+                    socket_handle PlayerSocket = OS_AcceptSocket(PlayerListenSocket, 0, 0);
+                    
                     if (PlayerSocket != InvalidSocket)
                     {
-                        m_arena *PlayerArena = M_ArenaAlloc(Megabytes(1));
-                        player_input *Input = PushStructZero(PlayerArena, player_input);
+                        m_arena *Arena = M_ArenaAlloc(Megabytes(1));
+                        player_input *Input = PushStructZero(Arena, player_input);
                         Input->Socket = PlayerSocket;
-                        Input->Arena = PlayerArena;
+                        Input->Arena = Arena;
                         Input->App = App;
-                        Input->PublicAddress = Addr.sin_addr.s_addr;
-                        Input->PublicPort = Addr.sin_port;
                         WorkQueue_PushEntrySP(&LinuxWorkQueue, ProcessPlayerRequest, Input);
                     }
                     ShouldResume = true;
@@ -151,24 +147,22 @@ int main()
                     Log("the ip of the host is %d", Addr.sin_addr.s_addr);
                     if (HostSocket != InvalidSocket)
                     {
-                        m_arena *HostArena = M_ArenaAlloc(Megabytes(1));
-                        host_context *Input = PushStructZero(HostArena, host_context);
+                        m_arena *Arena = M_ArenaAlloc(Megabytes(1));
+                        host_context *Input = PushStructZero(Arena, host_context);
                         
                         Input->Socket = HostSocket;
-                        Input->Arena = HostArena;
+                        Input->Arena = Arena;
                         Input->App = App;
-                        Input->PublicAddress = Addr.sin_addr.s_addr;
-                        Input->PublicPort = Addr.sin_port;
+                        Input->Address = Addr.sin_addr.s_addr;
                         Input->EpollFD = EpollFD;
-                        Log("received connection from %d:%d", Input->PublicAddress, Input->PublicPort);
-                        Input->EpollContext = PushStructZero(HostArena, epoll_context);
+                        
+                        Input->EpollContext = PushStructZero(Arena, epoll_context);
                         Input->EpollContext->Origin = epoll_origin_HostCloseSignal;
                         Input->EpollContext->Socket = HostSocket;
                         Input->EpollContext->Data = Input;
                         
                         WorkQueue_PushEntrySP(&LinuxWorkQueue, ProcessHostRequest, Input);
                     }
-                    ShouldResume = true;
                 } break;
                 default: NotImplemented;
             }
